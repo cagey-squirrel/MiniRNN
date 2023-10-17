@@ -29,32 +29,27 @@ class RNN(torch.nn.Module):
         self.bh = torch.nn.Parameter(data=torch.zeros((hidden_size, 1)).to(device), requires_grad=True)
         self.by = torch.nn.Parameter(data=torch.zeros((vocab_size, 1)).to(device), requires_grad=True)
 
-        # Hidden state
-        self.h = torch.zeros((hidden_size, 1)).to(device)
-
-
-    def reset_hidden_state(self):
-        self.h = torch.zeros((self.hidden_size, 1)).to(self.device)
         
     
-    def forward(self, input_char):
+    def forward(self, input_char_id, hidden_state):
         # Input vector has all 0s except index of input char which has a value of 1
         # Basically, its a one-hot encoding
-        input_vector = torch.zeros((self.vocab_size, 1)).to(self.device)
-        # input_char_id = self.char_to_id[input_char]
-        input_char_id = input_char
-        input_vector[input_char_id] = 1
+        num_encodings = hidden_state.shape[0]
+        input_vector = torch.zeros((num_encodings, self.vocab_size, 1)).to(self.device)
+
+        
+        input_indices = input_char_id.flatten()
+        input_vector[torch.arange(num_encodings), input_indices, 0] = 1
 
         # Hidden state update
         first_dot = self.Wxh @ input_vector
-        second_dot = self.Whh @ self.h
-        self.h = torch.tanh(first_dot + second_dot + self.bh)
+        second_dot = self.Whh @ hidden_state
+        hidden_state = torch.tanh(first_dot + second_dot + self.bh)
 
         # Logits of next char probabilities
-        char_predictions = (self.Why @ self.h) + self.by
+        char_predictions = (self.Why @ hidden_state) + self.by
 
         # Normalized probabilities
-        char_predictions = torch.softmax(char_predictions, dim=0)
+        char_predictions = torch.softmax(char_predictions, dim=1)
 
-        return char_predictions
-
+        return char_predictions, hidden_state
