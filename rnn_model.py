@@ -50,6 +50,7 @@ class RNN(torch.nn.Module):
         char_predictions = (self.Why @ hidden_state) + self.by
 
         # Normalized probabilities
-        char_predictions = torch.softmax(char_predictions, dim=1)
+        # Removed: now returns logits
+        # char_predictions = torch.softmax(char_predictions, dim=1)
 
         return char_predictions, hidden_state

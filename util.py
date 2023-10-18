@@ -1,6 +1,6 @@
 import torch 
 from torch.utils.data import DataLoader
-
+import numpy as np
 
 class CharDataset(torch.utils.data.Dataset):
 
@@ -62,10 +62,15 @@ def sample_data(network, seed, length, output_file, char_to_id, id_to_char, hidd
     previous_char_index = input_char_index
     hidden_state = torch.zeros((1, hidden_size, 1)).to(device)
 
+    num_chars = len(char_to_id)
     for _ in range(length):
 
-        next_char_probabilities, hidden_state = network(torch.Tensor([previous_char_index]).long(), hidden_state)
+        next_char_logits, hidden_state = network(torch.Tensor([previous_char_index]).long(), hidden_state)
+        #next_char_logits /= 1.5
+        next_char_probabilities = torch.softmax(next_char_logits, dim=1)
         next_char_index = torch.argmax(next_char_probabilities).item()
+        #np_probs = next_char_probabilities.detach().cpu().numpy()
+        #next_char_index = np.random.choice(num_chars, p=np_probs.flatten())
         next_char = id_to_char[next_char_index]
         output_file.write(next_char)
 
