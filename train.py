@@ -4,12 +4,22 @@ import torch
 from util import load_data, sample_data, get_char_data_loaders
 from time import time
 import sys
+import argparse
 from IPython.core.ultratb import ColorTB
 
 sys.excepthook = ColorTB()
 
 
-def train(data_path, num_epochs=1000, lr=0.01, sequence_length=1024, hidden_size=100, output_file_name='output.txt'):
+def train(args):
+
+    data_path = args.txt_file_path
+    num_epochs = args.num_epochs
+    lr = args.learning_rate
+    sequence_length = args.sequence_length
+    hidden_size = args.hidden_size
+    output_file_name = args.output_file_name
+    sample_freq = args.sample_fre
+    temperature = args.temperature
 
     device = torch.device('cpu' if not torch.cuda.is_available() else "cuda:0")
     char_index_data, data_size, vocab_size, char_to_id, id_to_char = load_data(data_path)
@@ -45,26 +55,56 @@ def train(data_path, num_epochs=1000, lr=0.01, sequence_length=1024, hidden_size
             
         total_loss /= loads
        
-        print(f'finished epoch {epoch} with loss = {total_loss} in {time() - time_start} seconds')
+        print(f'Finished epoch {epoch} with loss = {total_loss} in {time() - time_start} seconds')
         
         total_loss.backward()
         torch.nn.utils.clip_grad_norm_(network.parameters(), 5)
         optimizer.step()
 
-        if (epoch + 0) % 10 == 0:
-            sample_data(network, 'a', 100, output_file, char_to_id, id_to_char, hidden_size, device)
+        if (epoch + 0) % sample_freq == 0:
+            sample_data(network, 'a', 100, output_file, char_to_id, id_to_char, hidden_size, device, temperature)
             output_file.write('\n\n')
             output_file.flush()
 
 
 
 
-def main():
-    path = 'aca_chat.txt'
-    #path = 'mini_example.txt'
-    #path = 'test.txt'
-    train(path)
+def main(args):
+    train(args)
+
+
+def arg_parser():
+
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument("--txt_file_path", type=str, help="Path to txt file for network to train on", default="wa_chat.txt")
+    parser.add_argument("--num_epochs", type=int, help="Number of epochs model trains for", default=1000)
+    parser.add_argument("--learning_rate", type=float, help="Learning rate for model", default=0.01)
+    parser.add_argument("--sequence_length", type=int, help="Txt file is split into sequences for training. This parameter determines the length of those sequences. Smaller length grants faster training with lower performance. -1 means whole file is used as a sequence."
+                        , default=256)
+    parser.add_argument("--hidden_size", type=int, help="Number of neurons in hidden layer.", default=100)
+    parser.add_argument("--output_file_name", type=str, help="Path to txt file where output will be printed.", default="output.txt")
+    parser.add_argument("--temperature", type=float, help="Temperature used for scaling logits before softmax. Used only for random sampling. Value of -1 means deterministic argmax sampling.", default=-1)
+    parser.add_argument("--sample_freq", type=int, help="After how many epochs to sample output.", default=10)
+
+    args = parser.parse_args()
+
+    return args
+
+
+def run(**kwargs):
+    # Usage: from train import run; run(txt_file_path='songs.txt', num_epochs=10)
+    args = arg_parser()
+
+    for k, v in kwargs.items():
+        setattr(args, k, v)
+    
+    main(args)
+
 
 
 if __name__ == "__main__":
-    main()
+
+    args = arg_parser()
+    print(vars(args))
+    main(args)
