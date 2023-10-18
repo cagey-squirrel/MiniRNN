@@ -27,6 +27,9 @@ class CharDataset(torch.utils.data.Dataset):
 
 def get_char_data_loaders(char_index_data, data_size, sequence_length):
 
+    if sequence_length == -1 or sequence_length >= data_size:
+        sequence_length = data_size - 1
+
     char_dataset = CharDataset(char_index_data, sequence_length, data_size)
     char_dataloader = DataLoader(char_dataset, batch_size=1, shuffle=False)
 
@@ -48,7 +51,7 @@ def load_data(path):
     return char_index_data, data_size, vocab_size, char_to_ix, ix_to_char
 
 
-def sample_data(network, seed, length, output_file, char_to_id, id_to_char, hidden_size, device):
+def sample_data(network, seed, length, output_file, char_to_id, id_to_char, hidden_size, device, temperature):
     '''
     Samples a string of length 'length' from model and prints it to output file
     Seed 'seed' is used to prompt the first iteration of sampling 
@@ -66,14 +69,18 @@ def sample_data(network, seed, length, output_file, char_to_id, id_to_char, hidd
     for _ in range(length):
 
         next_char_logits, hidden_state = network(torch.Tensor([previous_char_index]).long(), hidden_state)
-        #next_char_logits /= 1.5
-        next_char_probabilities = torch.softmax(next_char_logits, dim=1)
-        next_char_index = torch.argmax(next_char_probabilities).item()
-        #np_probs = next_char_probabilities.detach().cpu().numpy()
-        #next_char_index = np.random.choice(num_chars, p=np_probs.flatten())
-        next_char = id_to_char[next_char_index]
-        output_file.write(next_char)
 
+        if temperature == -1:  # No random sampling
+            next_char_probabilities = torch.softmax(next_char_logits, dim=1)
+            next_char_index = torch.argmax(next_char_probabilities).item()
+        else:  # Random sampling with temperature
+            next_char_logits /= temperature
+            next_char_probabilities = torch.softmax(next_char_logits, dim=1)
+            np_probs = next_char_probabilities.detach().cpu().numpy()
+            next_char_index = np.random.choice(num_chars, p=np_probs.flatten())
+        next_char = id_to_char[next_char_index]
+
+        output_file.write(next_char)
         previous_char_index = next_char_index
 
     network.train()
