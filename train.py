@@ -2,7 +2,7 @@ from models.RNN import RNN, RNN_Parallel
 from models.LSTM import LSTM
 from loss import CharacterPredictionLoss
 import torch
-from util.util import load_data, sample_data, init_hidden_state
+from util.util import load_data, sample_data
 from util.data_loader_rnn import get_char_rnn_data_loaders
 from util.data_loader_lstm import get_char_lstm_data_loaders
 from time import time
@@ -25,19 +25,21 @@ def train(args):
     temperature = args.temperature
     architecture = args.architecture
     num_layers = args.num_layers
-    dropout = 0.2
+    sample_length = args.sample_length
+    dropout = args.dropout
 
     device = torch.device('cpu' if not torch.cuda.is_available() else "cuda:0")
     char_index_data, data_size, vocab_size, char_to_id, id_to_char = load_data(data_path)
     
     
     if architecture == 'RNN':
-        network = RNN(char_to_id, device, vocab_size=vocab_size, hidden_size=hidden_size)
+        
         char_dataloader, num_sequences = get_char_rnn_data_loaders(char_index_data, data_size, sequence_length)
+        network = RNN(char_to_id, id_to_char, vocab_size=vocab_size, hidden_size=hidden_size, num_sequences=num_sequences, device=device)
         args = num_sequences, hidden_size, device
     elif architecture == 'LSTM':
-        network = LSTM(vocab_size=vocab_size, hidden_size=hidden_size, num_layers=num_layers, dropout=dropout, batch_first=True)
         char_dataloader, num_sequences = get_char_lstm_data_loaders(char_index_data, data_size, sequence_length, vocab_size, device)
+        network = LSTM(char_to_id, id_to_char, vocab_size=vocab_size, hidden_size=hidden_size, num_layers=num_layers, num_sequences=num_sequences, dropout=dropout, device=device, batch_first=True)
         args = num_layers, num_sequences, hidden_size, device
 
 
@@ -47,7 +49,7 @@ def train(args):
     optimizer = torch.optim.Adam(network.parameters(), lr=lr)
 
     output_file = open(output_file_name, 'w', encoding='utf-8')
-    #output_file.writelines(vars(args))
+    #output_file.writelines(vars(args))  # TODO: write all arguments in txt file
     
     for epoch in range(num_epochs):
         
@@ -57,22 +59,15 @@ def train(args):
         total_loss = 0
         loads = 0
 
-        hidden_state = init_hidden_state(architecture, args)
-        #hidden_state = torch.zeros((num_sequences, hidden_size, 1)).to(device)
+        hidden_state = network.init_hidden_state()
 
         for inputs, targets in char_dataloader:
             optimizer.zero_grad()
             loads += 1
 
-            #print(f'inputs.shape = {inputs.shape}')
-            #exit(-1)
             outputs, hidden_state = network(inputs, hidden_state)
+            hidden_state = network.detach_hidden_state(hidden_state)  # detaching hidden state so it can be used in next iteration with no gradient
 
-            if architecture == 'RNN':
-                hidden_state = hidden_state.detach()
-            elif architecture == 'LSTM':
-                hidden_state = (hidden_state[0].detach(), hidden_state[1].detach())
-            
             loss = loss_function(outputs, targets)
             total_loss += loss
             
@@ -85,7 +80,7 @@ def train(args):
         optimizer.step()
 
         if (epoch + 0) % sample_freq == 0:
-            sample_data(network, 'a', 100, output_file, char_to_id, id_to_char, hidden_size, device, temperature, architecture, args, vocab_size)
+            network.sample_data(sample_length, temperature, output_file)
             output_file.write('\n\n')
             output_file.flush()
 
@@ -111,6 +106,8 @@ def arg_parser():
     parser.add_argument("--sample_freq", type=int, help="After how many epochs to sample output.", default=10)
     parser.add_argument("--architecture", type=str, help="Type of architecture to use.", choices=['LSTM', 'RNN'], default='RNN')
     parser.add_argument("--num_layers", type=int, help="Number of hidden layers for LSTM model.", default=2)
+    parser.add_argument("--dropout", type=float, help="Dropout prob for LSTM model.", default=0.2)
+    parser.add_argument("--sample_length", type=int, help="Length of generated sample", default=100)
 
     args = parser.parse_args()
 

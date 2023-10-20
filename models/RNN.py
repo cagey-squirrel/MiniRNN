@@ -1,5 +1,5 @@
 import torch
-
+import numpy as np
 
 class RNN_Parallel(torch.nn.DataParallel):
 
@@ -14,12 +14,15 @@ class RNN_Parallel(torch.nn.DataParallel):
 
 class RNN(torch.nn.Module):
 
-    def __init__(self, char_to_id, device, hidden_size=1, vocab_size=1):
+    def __init__(self, char_to_id, id_to_char, device, hidden_size, vocab_size, num_sequences):
         super().__init__()
         self.char_to_id = char_to_id
-        self.device = device
+        self.id_to_char = id_to_char
         self.hidden_size = hidden_size
         self.vocab_size = vocab_size
+        self.num_sequences = num_sequences
+        self.device = device
+
         # Weights
         self.Wxh = torch.nn.Parameter(data=torch.randn(size=(hidden_size, vocab_size)).to(device) * 0.01, requires_grad=True)
         self.Whh = torch.nn.Parameter(data=torch.randn(size=(hidden_size, hidden_size)).to(device) * 0.01, requires_grad=True)
@@ -54,3 +57,53 @@ class RNN(torch.nn.Module):
         # char_predictions = torch.softmax(char_predictions, dim=1)
 
         return char_predictions, hidden_state
+    
+
+    def sample_data(self, sample_length, temperature, output_file):
+
+        self.eval()
+
+        seed_char = 'a'  # TODO get_random_init_char
+        seed_char_index = self.char_to_id[seed_char]
+        previous_char_index = seed_char_index
+        
+
+        hidden_state = self.init_hidden_state()
+        num_chars = len(self.char_to_id)
+
+        for _ in range(sample_length):
+
+  
+            next_char_logits, hidden_state = self.forward(torch.Tensor([previous_char_index]).long(), hidden_state)
+            
+
+            if temperature == -1:  # No random sampling
+                next_char_probabilities = torch.softmax(next_char_logits, dim=1)
+                next_char_index = torch.argmax(next_char_probabilities).item()
+        
+            else:  # Random sampling with temperature
+                next_char_logits /= temperature
+                next_char_probabilities = torch.softmax(next_char_logits, dim=1)
+                np_probs = next_char_probabilities.detach().cpu().numpy()
+                next_char_index = np.random.choice(num_chars, p=np_probs.flatten())
+
+            next_char = self.id_to_char[next_char_index]
+
+            output_file.write(next_char)
+            previous_char_index = next_char_index
+
+        self.train()
+    
+
+    def init_hidden_state(self):
+
+        hidden_state = torch.zeros((self.num_sequences, self.hidden_size, 1)).to(self.device)
+        return hidden_state
+
+
+
+    def detach_hidden_state(self, hidden_state):
+    
+        # Hidden state is a single torch.tensor
+        hidden_state = hidden_state.detach()
+        return hidden_state
