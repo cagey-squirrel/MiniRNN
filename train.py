@@ -2,7 +2,7 @@ from models.RNN import RNN, RNN_Parallel
 from models.LSTM import LSTM
 from loss import CharacterPredictionLoss
 import torch
-from util.util import load_data, sample_data
+from util.util import load_data
 from util.data_loader_rnn import get_char_rnn_data_loaders
 from util.data_loader_lstm import get_char_lstm_data_loaders
 from time import time
@@ -26,6 +26,7 @@ def train(args):
     architecture = args.architecture
     num_layers = args.num_layers
     sample_length = args.sample_length
+    batch_size = args.batch_size
     dropout = args.dropout
 
     device = torch.device('cpu' if not torch.cuda.is_available() else "cuda:0")
@@ -38,8 +39,8 @@ def train(args):
         network = RNN(char_to_id, id_to_char, vocab_size=vocab_size, hidden_size=hidden_size, num_sequences=num_sequences, device=device)
         args = num_sequences, hidden_size, device
     elif architecture == 'LSTM':
-        char_dataloader, num_sequences = get_char_lstm_data_loaders(char_index_data, data_size, sequence_length, vocab_size, device)
-        network = LSTM(char_to_id, id_to_char, vocab_size=vocab_size, hidden_size=hidden_size, num_layers=num_layers, num_sequences=num_sequences, dropout=dropout, device=device, batch_first=True)
+        char_dataloader, num_sequences, batch_size = get_char_lstm_data_loaders(char_index_data, data_size, sequence_length, vocab_size, batch_size, device)
+        network = LSTM(char_to_id, id_to_char, vocab_size=vocab_size, hidden_size=hidden_size, num_layers=num_layers, num_sequences=num_sequences, sequence_length=sequence_length, batch_size=batch_size, dropout=dropout, device=device, batch_first=True)
         args = num_layers, num_sequences, hidden_size, device
 
 
@@ -68,6 +69,7 @@ def train(args):
             outputs, hidden_state = network(inputs, hidden_state)
             hidden_state = network.detach_hidden_state(hidden_state)  # detaching hidden state so it can be used in next iteration with no gradient
 
+            targets = network.one_hot_encoding(targets)
             loss = loss_function(outputs, targets)
             total_loss += loss
             
@@ -108,6 +110,7 @@ def arg_parser():
     parser.add_argument("--num_layers", type=int, help="Number of hidden layers for LSTM model.", default=2)
     parser.add_argument("--dropout", type=float, help="Dropout prob for LSTM model.", default=0.2)
     parser.add_argument("--sample_length", type=int, help="Length of generated sample", default=100)
+    parser.add_argument("--batch_size", type=int, help="Batch size to use for LSTM model", default=8)
 
     args = parser.parse_args()
 

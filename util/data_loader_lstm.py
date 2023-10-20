@@ -24,10 +24,15 @@ class CharLstmDataset(torch.utils.data.Dataset):
         
         start_index =  index      * self.sequence_length
         end_index   = (index + 1) * self.sequence_length
-        inputs  = [get_one_hot_vector(self.vocab_size, char_index, self.device) for char_index in self.char_index_data[start_index     : end_index]]
-        targets = [get_one_hot_vector(self.vocab_size, char_index, self.device) for char_index in self.char_index_data[start_index + 1 : end_index + 1]]
-
-        return torch.stack(inputs), torch.stack(targets)
+        inputs  = [char_index for char_index in self.char_index_data[start_index     : end_index]]
+        targets = [char_index for char_index in self.char_index_data[start_index + 1 : end_index + 1]]
+        return torch.Tensor(inputs).long(), torch.Tensor(targets).long()
+    
+        #inputs  = [get_one_hot_vector(self.vocab_size, char_index, self.device) for char_index in self.char_index_data[start_index     : end_index]]
+        #targets = [get_one_hot_vector(self.vocab_size, char_index, self.device) for char_index in self.char_index_data[start_index + 1 : end_index + 1]]
+        #return torch.stack(inputs), torch.stack(targets)
+        
+        
 
 
 def get_one_hot_vector(shape, index, device):
@@ -38,12 +43,16 @@ def get_one_hot_vector(shape, index, device):
     return one_hot_vector
 
 
-def get_char_lstm_data_loaders(char_index_data, data_size, sequence_length, vocab_size, device):
+def get_char_lstm_data_loaders(char_index_data, data_size, sequence_length, vocab_size, batch_size, device):
 
     if sequence_length == -1 or sequence_length >= data_size:
         sequence_length = data_size - 1
 
     char_dataset = CharLstmDataset(char_index_data, sequence_length, data_size, vocab_size, device)
-    char_dataloader = DataLoader(char_dataset, batch_size=6, shuffle=False)
 
-    return char_dataloader, char_dataset.num_sequences
+    if char_dataset.num_sequences < batch_size:
+        batch_size = char_dataset.num_sequences
+
+    char_dataloader = DataLoader(char_dataset, batch_size=batch_size, shuffle=False, drop_last=True)
+
+    return char_dataloader, char_dataset.num_sequences, batch_size

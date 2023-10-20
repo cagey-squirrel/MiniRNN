@@ -37,10 +37,9 @@ class RNN(torch.nn.Module):
     def forward(self, input_char_id, hidden_state):
         # Input vector has all 0s except index of input char which has a value of 1
         # Basically, its a one-hot encoding
-        num_encodings = hidden_state.shape[0]
-        input_vector = torch.zeros((num_encodings, self.vocab_size, 1)).to(self.device)
+        num_encodings = input_char_id.shape[0]
 
-        
+        input_vector = torch.zeros((num_encodings, self.vocab_size, 1)).to(self.device)
         input_indices = input_char_id.flatten()
         input_vector[torch.arange(num_encodings), input_indices, 0] = 1
 
@@ -68,8 +67,7 @@ class RNN(torch.nn.Module):
         previous_char_index = seed_char_index
         
 
-        hidden_state = self.init_hidden_state()
-        num_chars = len(self.char_to_id)
+        hidden_state = self.init_hidden_state_for_sampling()
 
         for _ in range(sample_length):
 
@@ -85,7 +83,7 @@ class RNN(torch.nn.Module):
                 next_char_logits /= temperature
                 next_char_probabilities = torch.softmax(next_char_logits, dim=1)
                 np_probs = next_char_probabilities.detach().cpu().numpy()
-                next_char_index = np.random.choice(num_chars, p=np_probs.flatten())
+                next_char_index = np.random.choice(self.vocab_size, p=np_probs.flatten())
 
             next_char = self.id_to_char[next_char_index]
 
@@ -101,9 +99,27 @@ class RNN(torch.nn.Module):
         return hidden_state
 
 
+    def init_hidden_state_for_sampling(self):
+        '''
+        In training the input is in batches, when sampling we just use a single input (num_sequences = 1)
+        '''
+        hidden_state = torch.zeros((1, self.hidden_size, 1)).to(self.device)
+        return hidden_state
+
 
     def detach_hidden_state(self, hidden_state):
     
         # Hidden state is a single torch.tensor
         hidden_state = hidden_state.detach()
         return hidden_state
+    
+
+    def one_hot_encoding(self, targets):
+        batch_size = targets.shape[0]
+        num_sequences = targets.shape[1]
+
+        target_index = targets.squeeze().long()
+        one_hot_encoding = torch.zeros((num_sequences, self.vocab_size, batch_size), device=self.device)
+        one_hot_encoding[torch.arange(num_sequences), target_index, 0] = 1
+
+        return one_hot_encoding

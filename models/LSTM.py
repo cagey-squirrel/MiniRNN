@@ -4,7 +4,7 @@ import numpy as np
 class LSTM(torch.nn.Module):
 
 
-    def __init__(self, char_to_id, id_to_char, vocab_size, hidden_size, num_layers, num_sequences, dropout, device, batch_first):
+    def __init__(self, char_to_id, id_to_char, vocab_size, hidden_size, num_layers, num_sequences, sequence_length, batch_size, dropout, device, batch_first):
         super().__init__()
 
         self.char_to_id = char_to_id
@@ -14,6 +14,8 @@ class LSTM(torch.nn.Module):
         self.dropout = dropout
         self.num_layers = num_layers
         self.num_sequences = num_sequences
+        self.sequence_length = sequence_length
+        self.batch_size = batch_size
         self.device = device
 
         # LSTM
@@ -23,9 +25,10 @@ class LSTM(torch.nn.Module):
         self.fc = torch.nn.Linear(hidden_size, vocab_size)
 
     
-    def forward(self, input, hidden_state):
+    def forward(self, inputs, hidden_state):
         
-        lstm_output, hidden_state = self.lstm(input, hidden_state)
+        inputs = self.one_hot_encoding(inputs)
+        lstm_output, hidden_state = self.lstm(inputs, hidden_state)
         word_prediction_logits = self.fc(lstm_output)
 
         return word_prediction_logits, hidden_state
@@ -44,10 +47,10 @@ class LSTM(torch.nn.Module):
         num_chars = len(self.char_to_id)
         for _ in range(sample_length):
 
+            
+            inputs = torch.Tensor([previous_char_index])[None, None, :].long()
 
-            input_char_tensor = torch.zeros((1, 1, self.vocab_size), device=self.device)
-            input_char_tensor[0, 0, previous_char_index] = 1
-            next_char_logits, hidden_state = self.forward(input_char_tensor, hidden_state)
+            next_char_logits, hidden_state = self.forward(inputs, hidden_state)
 
 
             if temperature == -1:  # No random sampling, just choose highest probability char
@@ -70,8 +73,8 @@ class LSTM(torch.nn.Module):
 
     def init_hidden_state(self):
 
-        hidden_state = (torch.zeros(self.num_layers, self.num_sequences, self.hidden_size).to(self.device),
-                        torch.zeros(self.num_layers, self.num_sequences, self.hidden_size).to(self.device))
+        hidden_state = (torch.zeros(self.num_layers, self.batch_size, self.hidden_size).to(self.device),
+                        torch.zeros(self.num_layers, self.batch_size, self.hidden_size).to(self.device))
         return hidden_state
     
 
@@ -89,4 +92,16 @@ class LSTM(torch.nn.Module):
         # Hidden state is a tuple of two torch.Tensors
         hidden_state = (hidden_state[0].detach(), hidden_state[1].detach())
         return hidden_state
+    
+
+    def one_hot_encoding(self, inputs):
+
+        batch_size = inputs.shape[0]
+        sequence_length = inputs.shape[1]
+
+        one_hot_encoding = torch.zeros(batch_size, sequence_length, self.vocab_size)
+        one_hot_encoding[torch.arange(batch_size).repeat_interleave(sequence_length), torch.arange(sequence_length).repeat(batch_size), inputs.flatten()] = 1
+
+        return one_hot_encoding
+        
 
