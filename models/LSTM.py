@@ -25,13 +25,17 @@ class LSTM(torch.nn.Module):
         self.fc = torch.nn.Linear(hidden_size, vocab_size)
 
     
-    def forward(self, inputs, hidden_state):
+    def forward(self, inputs, hidden_state, return_probs=False):
 
         inputs = self.one_hot_encoding(inputs)
         lstm_output, hidden_state = self.lstm(inputs, hidden_state)
-        word_prediction_logits = self.fc(lstm_output)
+        char_prediction_logits = self.fc(lstm_output)
 
-        return word_prediction_logits, hidden_state
+        if return_probs:
+            char_prediction_probs = torch.softmax(char_prediction_logits, dim=2)
+            return char_prediction_probs, hidden_state
+
+        return char_prediction_logits, hidden_state
     
 
     def sample_data(self, sample_length, temperature, output_file):

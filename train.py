@@ -67,10 +67,11 @@ def train(args):
             loads += 1
 
             inputs, targets = inputs.to(device), targets.to(device)
-            outputs, hidden_state = network(inputs, hidden_state)
+            outputs, hidden_state = network(inputs, hidden_state, return_probs=True)
             hidden_state = network.detach_hidden_state(hidden_state)  # detaching hidden state so it can be used in next iteration with no gradient
 
             targets = network.one_hot_encoding(targets)
+            #input('targets')
             loss = loss_function(outputs, targets)
             total_loss += loss
             

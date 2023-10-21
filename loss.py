@@ -12,13 +12,11 @@ class CharacterPredictionLoss(torch.nn.Module):
         self.architecture = architecture
 
     
-    def forward(self, char_predictions_logits, targets):
+    def forward(self, char_predictions_probs, targets):
         '''
         Calcualte CE loss
         We expect the index of target_char to have probability 1 
         '''
         
-        char_predictions = torch.softmax(char_predictions_logits, dim=1)
-        
-        loss_mean = self.loss_function(char_predictions, targets)
+        loss_mean = self.loss_function(char_predictions_probs, targets)
         return loss_mean

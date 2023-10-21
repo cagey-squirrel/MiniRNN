@@ -34,14 +34,11 @@ class RNN(torch.nn.Module):
 
         
     
-    def forward(self, input_char_id, hidden_state):
+    def forward(self, inputs, hidden_state, return_probs=False):
+
         # Input vector has all 0s except index of input char which has a value of 1
         # Basically, its a one-hot encoding
-        num_encodings = input_char_id.shape[0]
-
-        input_vector = torch.zeros((num_encodings, self.vocab_size, 1)).to(self.device)
-        input_indices = input_char_id.flatten()
-        input_vector[torch.arange(num_encodings), input_indices, 0] = 1
+        input_vector = self.one_hot_encoding(inputs)
 
         # Hidden state update
         first_dot = self.Wxh @ input_vector
@@ -49,13 +46,14 @@ class RNN(torch.nn.Module):
         hidden_state = torch.tanh(first_dot + second_dot + self.bh)
 
         # Logits of next char probabilities
-        char_predictions = (self.Why @ hidden_state) + self.by
+        char_prediction_logits = (self.Why @ hidden_state) + self.by
 
-        # Normalized probabilities
-        # Removed: now returns logits
-        # char_predictions = torch.softmax(char_predictions, dim=1)
+        if return_probs:
+            char_prediction_probs = torch.softmax(char_prediction_logits, dim=1)
+            return char_prediction_probs, hidden_state
 
-        return char_predictions, hidden_state
+
+        return char_prediction_logits, hidden_state
     
 
     def sample_data(self, sample_length, temperature, output_file):
@@ -71,8 +69,9 @@ class RNN(torch.nn.Module):
 
         for _ in range(sample_length):
 
-  
-            next_char_logits, hidden_state = self.forward(torch.Tensor([previous_char_index]).long(), hidden_state)
+            
+            inputs = torch.Tensor([previous_char_index])[None, :, None].long()
+            next_char_logits, hidden_state = self.forward(inputs, hidden_state)
             
 
             if temperature == -1:  # No random sampling
@@ -115,6 +114,7 @@ class RNN(torch.nn.Module):
     
 
     def one_hot_encoding(self, targets):
+        #print(f'targets.shape = {targets.shape}')
         batch_size = targets.shape[0]
         num_sequences = targets.shape[1]
 
