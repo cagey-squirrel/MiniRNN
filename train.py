@@ -63,6 +63,7 @@ def train(args):
         hidden_state = network.init_hidden_state()
 
         for inputs, targets in char_dataloader:
+    
             optimizer.zero_grad()
             loads += 1
 
@@ -71,17 +72,18 @@ def train(args):
             hidden_state = network.detach_hidden_state(hidden_state)  # detaching hidden state so it can be used in next iteration with no gradient
 
             targets = network.one_hot_encoding(targets)
-            #input('targets')
             loss = loss_function(outputs, targets)
             total_loss += loss
+
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(network.parameters(), 5)
+            optimizer.step()
             
         total_loss /= loads
        
         print(f'Finished epoch {epoch} with loss = {total_loss} in {time() - time_start} seconds')
         
-        total_loss.backward()
-        torch.nn.utils.clip_grad_norm_(network.parameters(), 5)
-        optimizer.step()
+        
 
         if (epoch + 0) % sample_freq == 0:
             network.sample_data(sample_length, temperature, output_file)
