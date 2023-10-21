@@ -26,7 +26,7 @@ class LSTM(torch.nn.Module):
 
     
     def forward(self, inputs, hidden_state):
-        
+
         inputs = self.one_hot_encoding(inputs)
         lstm_output, hidden_state = self.lstm(inputs, hidden_state)
         word_prediction_logits = self.fc(lstm_output)
@@ -90,16 +90,16 @@ class LSTM(torch.nn.Module):
     def detach_hidden_state(self, hidden_state):
 
         # Hidden state is a tuple of two torch.Tensors
-        hidden_state = (hidden_state[0].detach(), hidden_state[1].detach())
+        hidden_state = (hidden_state[0].detach().to(self.device), hidden_state[1].detach().to(self.device))
         return hidden_state
     
 
     def one_hot_encoding(self, inputs):
-
+        
         batch_size = inputs.shape[0]
         sequence_length = inputs.shape[1]
 
-        one_hot_encoding = torch.zeros(batch_size, sequence_length, self.vocab_size)
+        one_hot_encoding = torch.zeros(batch_size, sequence_length, self.vocab_size).to(self.device)
         one_hot_encoding[torch.arange(batch_size).repeat_interleave(sequence_length), torch.arange(sequence_length).repeat(batch_size), inputs.flatten()] = 1
 
         return one_hot_encoding

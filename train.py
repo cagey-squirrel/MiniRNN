@@ -66,6 +66,7 @@ def train(args):
             optimizer.zero_grad()
             loads += 1
 
+            inputs, targets = inputs.to(device), targets.to(device)
             outputs, hidden_state = network(inputs, hidden_state)
             hidden_state = network.detach_hidden_state(hidden_state)  # detaching hidden state so it can be used in next iteration with no gradient
 
